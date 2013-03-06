@@ -1,6 +1,8 @@
 package br.com.jcomputacao.kinghost;
 
+import java.io.IOException;
 import java.net.Authenticator;
+import javax.xml.bind.JAXBException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -16,11 +18,14 @@ public class CepWsTest {
 
     @Before
     public void setUp() {
-        System.setProperty("http.proxyHost", "192.168.4.254");
-        System.setProperty("http.proxyPort", "3128");
-        System.setProperty("http.proxyUser", "murilo");
-        System.setProperty("http.proxyPassword", "");
-        System.setProperty("kinghost.auth", "");
+//        System.setProperty("http.proxyHost", "192.168.4.254");
+//        System.setProperty("http.proxyPort", "3128");
+//        System.setProperty("http.proxyUser", "murilo");
+//        System.setProperty("http.proxyPassword", "");
+        
+        System.setProperty("kinghost.auth", "78");
+        
+        
         Authenticator.setDefault(new HttpAuthProxy());
     }
 
@@ -32,8 +37,18 @@ public class CepWsTest {
      * Test of execute method, of class CepWs.
      */
     @Test
-    public void testExecute() {
-        CepWs instance = new CepWs("01300-110");
-        instance.execute();
+    public void testExecute() throws IOException, JAXBException {
+        CepWs instance = new CepWs("13300110");
+        ResultadoCep r = instance.execute();
+        
+        if ("1".equals(r.getResultado())) {
+            System.out.println(r.getTipo_logradouro());
+            System.out.println(r.getLogradouro());
+            System.out.println(r.getBairro());
+            System.out.println(r.getCidade());
+            System.out.println(r.getUf());
+        } else {
+            System.out.println(r.getResultado_txt());
+        }
     }
 }
