@@ -4,7 +4,10 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetSocketAddress;
+import java.net.Proxy.Type;
 import java.net.URL;
+import java.net.URLConnection;
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
 import javax.xml.bind.Unmarshaller;
@@ -34,8 +37,28 @@ public class CepWs {
         aurl += auth;
         aurl += "&formato=xml&cep=" + cep;
         System.out.println(aurl);
-        URL url = new URL(aurl);
-        InputStream is = url.openStream();
+        
+        boolean usaAutenticacaoProxy = Boolean.parseBoolean(System.getProperty("usa.autenticacao.proxy", "true"));
+        InputStream is = null;
+        URLConnection urlConnection = null;
+        URL url = null;
+        if (usaAutenticacaoProxy) {
+            String proxy = System.getProperty("http.proxyHost");
+            int port = Integer.parseInt(System.getProperty("http.proxyPorta"));
+            java.net.Proxy informacoesProxy = new java.net.Proxy(Type.HTTP, new InetSocketAddress(proxy, port));
+
+            urlConnection = new URL(aurl).openConnection(informacoesProxy);
+
+            HttpAuthProxy authProxy = new HttpAuthProxy();
+            urlConnection.setRequestProperty("Proxy-Authorization", "Basic" + authProxy.getPasswordAuthentication());
+            urlConnection.connect();
+            is = urlConnection.getInputStream();
+
+        } else {
+            url = new URL(aurl);
+            is = url.openStream();
+        }
+        
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         int byt;
         while ((byt = is.read()) != -1) {
@@ -49,7 +72,7 @@ public class CepWs {
         Unmarshaller unmarshaller = context.createUnmarshaller();
         is = new ByteArrayInputStream(xml.getBytes("UTF-8"));
         ResultadoCep rc = unmarshaller.unmarshal(new StreamSource(is), ResultadoCep.class).getValue();
-        is.close();
+        is.close();        
         return rc;
     }
 }
