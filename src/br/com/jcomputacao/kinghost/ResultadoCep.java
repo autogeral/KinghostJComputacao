@@ -20,6 +20,8 @@ public class ResultadoCep {
     private String bairro;
     private String tipo_logradouro;
     private String logradouro;
+    private String cliente;
+    private String cep;
 
     public String getBairro() {
         return bairro;
@@ -75,5 +77,21 @@ public class ResultadoCep {
 
     public void setUf(String uf) {
         this.uf = uf;
+    }
+
+    public String getCliente() {
+        return cliente;
+    }
+
+    public void setCliente(String cliente) {
+        this.cliente = cliente;
+    }
+
+    public String getCep() {
+        return cep;
+    }
+
+    public void setCep(String cep) {
+        this.cep = cep;
     }
 }
