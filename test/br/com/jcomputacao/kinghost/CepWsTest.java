@@ -22,10 +22,9 @@ public class CepWsTest {
 //        System.setProperty("http.proxyPort", "3128");
 //        System.setProperty("http.proxyUser", "murilo");
 //        System.setProperty("http.proxyPassword", "");
-        
-        System.setProperty("kinghost.auth", "78");
-        
-        
+        System.setProperty("kinghost.host", "webservice.uni5.net");
+        System.setProperty("kinghost.protocol", "http");
+        System.setProperty("kinghost.auth", "b78dd4aca16bf9904d92b5a238b91a98");
         Authenticator.setDefault(new HttpAuthProxy());
     }
 
@@ -39,6 +38,7 @@ public class CepWsTest {
     @Test
     public void testExecute() throws IOException, JAXBException {
         CepWs instance = new CepWs("13300110");
+//        CepWs instance = new CepWs("13301909");
         ResultadoCep r = instance.execute();
         
         if ("1".equals(r.getResultado())) {

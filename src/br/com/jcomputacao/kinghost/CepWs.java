@@ -8,6 +8,8 @@ import java.net.InetSocketAddress;
 import java.net.Proxy.Type;
 import java.net.URL;
 import java.net.URLConnection;
+import org.apache.commons.httpclient.HttpClient;
+import org.apache.commons.httpclient.methods.PostMethod;
 
 /**
  * 15/10/2011 14:20:34
@@ -20,6 +22,7 @@ public class CepWs {
     private final String protocolo;
     private final String auth;
     private final String cep;
+    private boolean mobile;
 
     public CepWs(String cep) {
         this.host      = System.getProperty("kinghost.host", "webservice.kinghost.net");
@@ -29,10 +32,6 @@ public class CepWs {
     }
     
     public static void main(String a[]) {
-        System.setProperty("http.proxyHost", "192.168.1.254");
-        System.setProperty("http.proxyPorta", "3128");
-        System.setProperty("http.proxyUser", "informatica");
-        System.setProperty("http.proxyPassword", "informatica");
         try {
             CepWs cw = new CepWs("13301909");
             ResultadoCep r = cw.execute();
@@ -50,12 +49,17 @@ public class CepWs {
     }
 
     public ResultadoCep execute() throws IOException {
+        return (mobile ? executeMobile() : executeCommon());
+    }
+        
+    private ResultadoCep executeMobile() throws IOException {
+        //http://www.buscacep.correios.com.br/servicos/dnec/consultaEnderecoAction.do
         String aurl = "http://m.correios.com.br/movel/buscaCepConfirma.do?cepEntrada=";
         aurl += cep;
         aurl += "&tipoCep=,&cepTemp=,&metodo=buscarCep";
         System.out.println(aurl);
         
-        boolean usaAutenticacaoProxy = Boolean.parseBoolean(System.getProperty("usa.autenticacao.proxy", "true"));
+        boolean usaAutenticacaoProxy = Boolean.parseBoolean(System.getProperty("usa.autenticacao.proxy", "false"));
         InputStream is = null;
         URLConnection urlConnection = null;
         URL url = null;
@@ -110,7 +114,7 @@ public class CepWs {
         } else {
             System.out.println("Idx1 : " + idx1 + " Idx2 : " + idx2);
         }
-        return null;
+        return new ResultadoCep();
     }
 
     private String semEspacoDuploSemLinhaDupla(String filtrar) {
@@ -185,5 +189,124 @@ public class CepWs {
             }
         }
         return null;
+    }
+
+    private ResultadoCep executeCommon() throws IOException {
+        ResultadoCep result = new ResultadoCep();
+
+        HttpClient client = new HttpClient();
+        String aurl = "http://www.buscacep.correios.com.br";
+        aurl += "/servicos/dnec/consultaEnderecoAction.do";
+        PostMethod post = new PostMethod(aurl);
+
+//            if (usaAutenticacaoProxy) {
+//                String proxy = System.getProperty("http.proxyHost");
+//                int port = Integer.parseInt(System.getProperty("http.proxyPorta"));
+//                String user = System.getProperty("http.proxyUser");
+//                String password = System.getProperty("http.proxyPassword");
+//
+//                Credentials defaultcreds = new UsernamePasswordCredentials(user, password);
+//
+//                post.getProxyAuthState().setAuthScheme(new BasicScheme());
+//                AuthState proxyAuthState = post.getProxyAuthState();
+//                AuthScheme authScheme = proxyAuthState.getAuthScheme();
+//                String authstring = authScheme.authenticate(defaultcreds, post);
+//                post.addRequestHeader(new Header(PROXY_AUTH_RESP, authstring, true));
+//                post.setDoAuthentication(true);
+//                client.getState().setProxyCredentials(new AuthScope(proxy, port, authScheme.getRealm(), authScheme.getSchemeName()), defaultcreds);
+//                client.getHostConfiguration().setProxy(proxy, port);
+//                client.getHostConfiguration().setHost(aurl);
+//
+//            }
+
+        post.setParameter("relaxation", cep);
+        post.setParameter("TipoCep", "ALL");
+        post.setParameter("semelhante", "N");
+
+        post.setParameter("cfm", "1");
+        post.setParameter("Metodo", "listaLogradouro");
+        post.setParameter("TipoConsulta", "relaxation");
+        post.setParameter("StartRow", "1");
+        post.setParameter("EndRow", "10");
+                                
+        int codigo = client.executeMethod(post);
+        InputStream is = post.getResponseBodyAsStream();
+        InputStreamReader isr = new InputStreamReader(is, "ISO-8859-1");
+        BufferedReader br = new BufferedReader(isr);
+
+        StringBuilder sb = new StringBuilder();
+        String buf = null;
+        while ((buf = br.readLine()) != null) {
+            sb.append(buf);
+            sb.append("\n");
+        }
+        br.close();
+        isr.close();
+        is.close();
+        post.releaseConnection();
+
+        String res = sb.toString();
+//        System.out.println(res);
+//        System.out.flush();
+        
+        /**
+         * <tr bgcolor="#ECF3F6" onclick="javascript:detalharCep('1','2');" style="cursor: pointer;">
+         * <td width="268" style="padding: 2px">Rua Marechal Deodoro</td>
+         * <td width="140" style="padding: 2px">Centro</td>
+         * <td width="140" style="padding: 2px">Itu</td>
+         * <td width="25" style="padding: 2px">SP</td>
+         * <td width="65" style="padding: 2px">13300-110</td>
+         * </tr>
+         */
+        String constante = "<tr bgcolor=\"#ECF3F6\" onclick=\"javascript:detalharCep('1','2');\" style=\"cursor: pointer;\">";
+               constante = "<tr bgcolor=\"#ECF3F6\" onclick=\"javascript:detalharCep('1','5');\" style=\"cursor: pointer;\">";
+               constante = "onclick=\"javascript:detalharCep";
+        int idx1 = res.indexOf(constante);
+        idx1 = res.indexOf("style=\"cursor: pointer;\">", idx1) + "style=\"cursor: pointer;\">".length();
+        int idx2 = res.indexOf("</tr>", idx1);
+        if (idx1 >= 0 && idx2 > idx1) {
+            result.setResultado("1");
+            String filtrar = res.substring(idx1, idx2);
+            filtrar = filtrar.replace(constante, "");
+            filtrar = semEspacoDuploSemLinhaDupla(filtrar);
+            
+            String[] frases = filtrar.split("</td>");
+            if (frases != null) {
+                int i = 1;
+                for (String frase : frases) {
+                    idx1 = frase.indexOf(">");
+                    String conteudo = frase.substring(idx1 + 1);
+                    System.out.println(conteudo);
+                    switch (i) {
+                        case 1: {
+                            idx1 = conteudo.indexOf(" ");
+                            String tipo = conteudo.substring(0, idx1);
+                            String logradouro = conteudo.substring(idx1 + 1);
+                            result.setTipo_logradouro(tipo);
+                            result.setLogradouro(logradouro);
+                        }
+                        break;
+                        case 2: {
+                            result.setBairro(conteudo);
+                        }
+                        break;
+                        case 3: {
+                            result.setCidade(conteudo);
+                        }
+                        break;
+                        case 4: {
+                            result.setUf(conteudo);
+                        }
+                        break;
+                        case 5: {
+                            result.setCep(conteudo);
+                        }
+                        break;
+                    }
+                    i++;
+                }
+            }
+        }
+        return result;
     }
 }
