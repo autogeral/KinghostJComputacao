@@ -8,8 +8,13 @@ import java.net.InetSocketAddress;
 import java.net.Proxy.Type;
 import java.net.URL;
 import java.net.URLConnection;
+import java.util.HashMap;
+import java.util.Map;
 import org.apache.commons.httpclient.HttpClient;
 import org.apache.commons.httpclient.methods.PostMethod;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.select.Elements;
 
 /**
  * 15/10/2011 14:20:34
@@ -22,7 +27,7 @@ public class CepWs {
     private final String protocolo;
     private final String auth;
     private final String cep;
-    private boolean mobile;
+    private boolean mobile = Boolean.parseBoolean(System.getProperty("buscaCep.correio.mobile", "true"));
 
     public CepWs(String cep) {
         this.host      = System.getProperty("kinghost.host", "webservice.kinghost.net");
@@ -51,70 +56,201 @@ public class CepWs {
     public ResultadoCep execute() throws IOException {
         return (mobile ? executeMobile() : executeCommon());
     }
-        
+
     private ResultadoCep executeMobile() throws IOException {
+        ResultadoCep result = new ResultadoCep();
+        String aurl = "http://m.correios.com.br/movel/buscaCepConfirma.do";
+        boolean usaBibliotecaJsoup = Boolean.parseBoolean(System.getProperty("usa.biblioteca.jsoup.buscaCep", "true"));
+        if (usaBibliotecaJsoup) {
+            Map<String, String> query = new HashMap<String, String>();
+            query.put("cepEntrada", cep);
+            query.put("tipoCep", "");
+            query.put("cepTemp", "");
+            query.put("metodo", "buscarCep");
+            Document doc = Jsoup.connect(aurl)
+                    .data(query)
+                    .post();
+            Elements elementos = doc.select(".respostadestaque");
+            if (elementos.size() > 0) {
+                if (elementos.size() >= 4) {
+                    if (elementos.get(0) != null && elementos.get(0).text() != null && !elementos.get(0).text().isEmpty()) {
+                        System.out.println("Logradouro: " + elementos.get(0).text());
+                        result.setLogradouro(elementos.get(0).text());
+                    }
+                    if (elementos.get(1) != null && elementos.get(1).text() != null && !elementos.get(1).text().isEmpty()) {
+                        System.out.println("Bairro: " + elementos.get(1).text());
+                        result.setBairro(elementos.get(1).text());
+                    }
+                    if (elementos.get(2) != null && elementos.get(2).text() != null && !elementos.get(2).text().isEmpty()) {
+                        System.out.println("Localidade/UF: " + elementos.get(2).text());
+                        String cidade = elementos.get(2).text().substring(0, elementos.get(2).text().indexOf("/"));
+                        String uf = elementos.get(2).text().substring(elementos.get(2).text().indexOf("/") + 1, elementos.get(2).text().length());
+                        result.setCidade(cidade.toUpperCase().trim());
+                        result.setUf(uf);
+                    }
+                    if (elementos.get(3) != null && elementos.get(3).text() != null && !elementos.get(3).text().isEmpty()) {
+                        System.out.println("CEP: " + elementos.get(3).text());
+                        result.setCep(elementos.get(3).text());
+                    }
+                } else if (elementos.size() == 2 && elementos.get(0).text().contains("/")) {
+                    if (elementos.get(0) != null && elementos.get(0).text() != null && !elementos.get(0).text().isEmpty()) {
+                        System.out.println("Localidade/UF: " + elementos.get(0).text());
+                        String cidade = elementos.get(0).text().substring(0, elementos.get(0).text().indexOf("/"));
+                        String uf = elementos.get(0).text().substring(elementos.get(0).text().indexOf("/") + 1, elementos.get(0).text().length());
+                        result.setCidade(cidade.toUpperCase().trim());
+                        result.setUf(uf);
+                    }
+                    if (elementos.get(1) != null && elementos.get(1).text() != null && !elementos.get(1).text().isEmpty()) {
+                        System.out.println("CEP: " + elementos.get(1).text());
+                        result.setCep(elementos.get(1).text());
+                    }
+                }
+            } else {
+                System.out.println("CEP não encontrado");
+            }
+        } else {
+
+            HttpClient client = new HttpClient();
+            PostMethod post = new PostMethod(aurl);
+
+            post.setParameter("cepEntrada", cep);
+            post.setParameter("metodo", "buscarCep");
+            post.setParameter("tipoCep", "");
+            post.setParameter("cepTemp", "");
+
+            int codigo = client.executeMethod(post);
+            InputStream is = post.getResponseBodyAsStream();
+            InputStreamReader isr = new InputStreamReader(is, "ISO-8859-1");
+            BufferedReader br = new BufferedReader(isr);
+
+            StringBuilder sb = new StringBuilder();
+            String buf = null;
+            while ((buf = br.readLine()) != null) {
+                sb.append(buf);
+                sb.append("\n");
+            }
+            br.close();
+            isr.close();
+            is.close();
+            post.releaseConnection();
+
+            String res = sb.toString();
+            System.out.println(res);
+            int index1 = res.indexOf("<div class=\"caixacampobranco\">");
+            int index2 = res.indexOf("<span class=\"resposta\">CEP: </span><span class=\"respostadestaque\">"+cep+"</span><br/>");
+
+            if (index1 >= 0 && index2 > index1) {
+                result.setResultado("1");
+                String filtrar = res.substring(index1, index2);
+                filtrar = filtrar.replace("<span class=\"resposta\">", "");
+                filtrar = semEspacoDuploSemLinhaDupla(filtrar);
+                filtrar = filtrar.replace("<span class=\"respostadestaque\">", "");
+                filtrar = filtrar.replace("<div class=\"caixacampobranco\">", "");
+                filtrar = filtrar.replace("</span>", "");
+                filtrar = filtrar.replace("<br/>", "");
+
+                int inicio = 0;
+                int fim = 0;
+                if (filtrar.contains("Logradouro:")) {
+                    inicio = filtrar.indexOf("Logradouro:");
+                    fim = filtrar.indexOf("Bairro:");
+                    String logradouro = filtrar.substring(inicio, fim);
+                    result.setLogradouro(logradouro.replace("Logradouro:", ""));
+                } else if(filtrar.contains("Endereço:")) {
+                    inicio = filtrar.indexOf("Endereço:");
+                    fim = filtrar.indexOf("Bairro:");
+                    String logradouro = filtrar.substring(inicio, fim);
+                    result.setLogradouro(logradouro.replace("Endereço:", ""));
+                }
+
+                if (filtrar.contains("Localidade/UF:")) {
+                    inicio = fim;
+                    fim = filtrar.indexOf("Localidade/UF:");
+                }
+
+                if (filtrar.contains("Bairro:")) {
+                    String bairro = filtrar.substring(inicio, fim);
+                    result.setBairro(bairro.replace("Bairro:", ""));
+                }
+
+                inicio = fim;
+                fim = filtrar.length();
+
+                String cidade = filtrar.substring(inicio, fim);
+                cidade = cidade.replace("Localidade/UF:", "");
+                String aux = cidade.substring(0, cidade.indexOf("/")).toUpperCase().trim();
+                result.setCidade(aux);
+
+                String uf = cidade.substring(cidade.indexOf("/"), cidade.length()).replace("/", "").toUpperCase().trim();
+                result.setUf(uf);
+
+                result.setCep(cep);
+            }
+        }
+        return result;
+
         //http://www.buscacep.correios.com.br/servicos/dnec/consultaEnderecoAction.do
-        String aurl = "http://m.correios.com.br/movel/buscaCepConfirma.do?cepEntrada=";
-        aurl += cep;
-        aurl += "&tipoCep=,&cepTemp=,&metodo=buscarCep";
-        System.out.println(aurl);
-        
-        boolean usaAutenticacaoProxy = Boolean.parseBoolean(System.getProperty("usa.autenticacao.proxy", "false"));
-        InputStream is = null;
-        URLConnection urlConnection = null;
-        URL url = null;
-        InputStreamReader isr = null;
-        BufferedReader br = null;
-        if (usaAutenticacaoProxy) {
-            String proxy = System.getProperty("http.proxyHost");
-            int port = Integer.parseInt(System.getProperty("http.proxyPorta"));
-            java.net.Proxy informacoesProxy = new java.net.Proxy(Type.HTTP, new InetSocketAddress(proxy, port));
-
-            urlConnection = new URL(aurl).openConnection(informacoesProxy);
-
-            HttpAuthProxy authProxy = new HttpAuthProxy();
-            urlConnection.setRequestProperty("Proxy-Authorization", "Basic" + authProxy.getPasswordAuthentication());
-            urlConnection.connect();
-            is = urlConnection.getInputStream();
-        } else {
-            url = new URL(aurl);
-            is = url.openStream();
-        }
-        
-        isr = new InputStreamReader(is, "ISO-8859-1");
-        br = new BufferedReader(isr);
-        
-        StringBuilder sb = new StringBuilder();
-        String buf = null;
-        while ((buf = br.readLine()) != null) {
-            sb.append(buf);
-            sb.append("\n");
-        }
-        br.close();
-        isr.close();
-        is.close();
-        
-        String res = sb.toString();
-        
-        
-        System.out.println(res);
-
-        int idx1 = res.indexOf("<div class=\"caixacampobranco\">");
-        int idx2 = res.indexOf("<div class=\"divopcoes\">");
-        if (idx1 >= 0 && idx2 > idx1) {
-            String filtrar = res.substring(idx1, idx2);
-            filtrar = semEspacoDuploSemLinhaDupla(filtrar);
-////            filtrar = semDiv(filtrar);
-//            System.out.println("################################");
-//            System.out.println("Resultado ate entao");
-//            System.out.println("################################");
-//            System.out.println(filtrar);
-//            System.out.println("################################");
-            return trataSpans(filtrar);
-        } else {
-            System.out.println("Idx1 : " + idx1 + " Idx2 : " + idx2);
-        }
-        return new ResultadoCep();
+//        String aurl = "http://m.correios.com.br/movel/buscaCepConfirma.do?cepEntrada=";
+//        aurl += cep;
+//        aurl += "&tipoCep=,&cepTemp=,&metodo=buscarCep";
+//        System.out.println(aurl);
+//        
+//        boolean usaAutenticacaoProxy = Boolean.parseBoolean(System.getProperty("usa.autenticacao.proxy", "false"));
+//        InputStream is = null;
+//        URLConnection urlConnection = null;
+//        URL url = null;
+//        InputStreamReader isr = null;
+//        BufferedReader br = null;
+//        if (usaAutenticacaoProxy) {
+//            String proxy = System.getProperty("http.proxyHost");
+//            int port = Integer.parseInt(System.getProperty("http.proxyPorta"));
+//            java.net.Proxy informacoesProxy = new java.net.Proxy(Type.HTTP, new InetSocketAddress(proxy, port));
+//
+//            urlConnection = new URL(aurl).openConnection(informacoesProxy);
+//
+//            HttpAuthProxy authProxy = new HttpAuthProxy();
+//            urlConnection.setRequestProperty("Proxy-Authorization", "Basic" + authProxy.getPasswordAuthentication());
+//            urlConnection.connect();
+//            is = urlConnection.getInputStream();
+//        } else {
+//            url = new URL(aurl);
+//            is = url.openStream();
+//        }
+//        
+//        isr = new InputStreamReader(is, "ISO-8859-1");
+//        br = new BufferedReader(isr);
+//        
+//        StringBuilder sb = new StringBuilder();
+//        String buf = null;
+//        while ((buf = br.readLine()) != null) {
+//            sb.append(buf);
+//            sb.append("\n");
+//        }
+//        br.close();
+//        isr.close();
+//        is.close();
+//        
+//        String res = sb.toString();
+//        
+//        
+//        System.out.println(res);
+//
+//        int idx1 = res.indexOf("<div class=\"caixacampobranco\">");
+//        int idx2 = res.indexOf("<div class=\"divopcoes\">");
+//        if (idx1 >= 0 && idx2 > idx1) {
+//            String filtrar = res.substring(idx1, idx2);
+//            filtrar = semEspacoDuploSemLinhaDupla(filtrar);
+//////            filtrar = semDiv(filtrar);
+////            System.out.println("################################");
+////            System.out.println("Resultado ate entao");
+////            System.out.println("################################");
+////            System.out.println(filtrar);
+////            System.out.println("################################");
+//            return trataSpans(filtrar);
+//        } else {
+//            System.out.println("Idx1 : " + idx1 + " Idx2 : " + idx2);
+//        }
+//        return new ResultadoCep();
     }
 
     private String semEspacoDuploSemLinhaDupla(String filtrar) {
