@@ -83,7 +83,7 @@ public class CepWs {
                     }
                     if (elementos.get(2) != null && elementos.get(2).text() != null && !elementos.get(2).text().isEmpty()) {
                         System.out.println("Localidade/UF: " + elementos.get(2).text());
-                        String cidade = elementos.get(2).text().substring(0, elementos.get(2).text().indexOf("/"));
+                        String cidade = StringUtil.noDeadKeysToUpperCase(elementos.get(2).text().substring(0, elementos.get(2).text().indexOf("/")));
                         String uf = elementos.get(2).text().substring(elementos.get(2).text().indexOf("/") + 1, elementos.get(2).text().length());
                         result.setCidade(cidade.toUpperCase().trim());
                         result.setUf(uf);
