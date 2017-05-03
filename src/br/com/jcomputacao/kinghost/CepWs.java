@@ -23,7 +23,7 @@ public class CepWs {
     private final String protocolo;
     private final String auth;
     private final String cep;
-    private boolean mobile = Boolean.parseBoolean(System.getProperty("buscaCep.correio.mobile", "true"));
+    private final boolean mobile = Boolean.parseBoolean(System.getProperty("buscaCep.correio.mobile", "true"));
 
     public CepWs(String cep) {
         this.host      = System.getProperty("kinghost.host", "webservice.kinghost.net");
