@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.apache.commons.httpclient.HttpClient;
 import org.apache.commons.httpclient.methods.PostMethod;
@@ -24,6 +25,7 @@ public class CepWs {
     private final String auth;
     private final String cep;
     private final boolean mobile = Boolean.parseBoolean(System.getProperty("buscaCep.correio.mobile", "true"));
+    private final boolean wsViaCep = Boolean.parseBoolean(System.getProperty("buscaCep.webService.viaCep", "true"));;
 
     public CepWs(String cep) {
         this.host      = System.getProperty("kinghost.host", "webservice.kinghost.net");
@@ -327,8 +329,16 @@ public class CepWs {
         ResultadoCep result = new ResultadoCep();
 
         HttpClient client = new HttpClient();
-        String aurl = "http://www.buscacep.correios.com.br";
-        aurl += "/servicos/dnec/consultaEnderecoAction.do";
+        String aurl = "";
+        if (!wsViaCep) {
+            aurl = "http://www.buscacep.correios.com.br";
+            aurl += "/servicos/dnec/consultaEnderecoAction.do";
+        } else {
+            aurl = "https://viacep.com.br/ws/";
+            aurl += cep;
+            aurl += "/xml/";//tipo do retorno desejado
+        }
+        
         PostMethod post = new PostMethod(aurl);
 
 //            if (usaAutenticacaoProxy) {
@@ -351,15 +361,17 @@ public class CepWs {
 //
 //            }
 
-        post.setParameter("relaxation", cep);
-        post.setParameter("TipoCep", "ALL");
-        post.setParameter("semelhante", "N");
+        if (!wsViaCep) {
+            post.setParameter("relaxation", cep);
+            post.setParameter("TipoCep", "ALL");
+            post.setParameter("semelhante", "N");
 
-        post.setParameter("cfm", "1");
-        post.setParameter("Metodo", "listaLogradouro");
-        post.setParameter("TipoConsulta", "relaxation");
-        post.setParameter("StartRow", "1");
-        post.setParameter("EndRow", "10");
+            post.setParameter("cfm", "1");
+            post.setParameter("Metodo", "listaLogradouro");
+            post.setParameter("TipoConsulta", "relaxation");
+            post.setParameter("StartRow", "1");
+            post.setParameter("EndRow", "10");
+        }
                                 
         int codigo = client.executeMethod(post);
         InputStream is = post.getResponseBodyAsStream();
@@ -390,54 +402,67 @@ public class CepWs {
          * <td width="65" style="padding: 2px">13300-110</td>
          * </tr>
          */
-        String constante = "<tr bgcolor=\"#ECF3F6\" onclick=\"javascript:detalharCep('1','2');\" style=\"cursor: pointer;\">";
-               constante = "<tr bgcolor=\"#ECF3F6\" onclick=\"javascript:detalharCep('1','5');\" style=\"cursor: pointer;\">";
-               constante = "onclick=\"javascript:detalharCep";
-        int idx1 = res.indexOf(constante);
-        idx1 = res.indexOf("style=\"cursor: pointer;\">", idx1) + "style=\"cursor: pointer;\">".length();
-        int idx2 = res.indexOf("</tr>", idx1);
-        if (idx1 >= 0 && idx2 > idx1) {
-            result.setResultado("1");
-            String filtrar = res.substring(idx1, idx2);
-            filtrar = filtrar.replace(constante, "");
-            filtrar = semEspacoDuploSemLinhaDupla(filtrar);
-            
-            String[] frases = filtrar.split("</td>");
-            if (frases != null) {
-                int i = 1;
-                for (String frase : frases) {
-                    idx1 = frase.indexOf(">");
-                    String conteudo = frase.substring(idx1 + 1);
-                    System.out.println(conteudo);
-                    switch (i) {
-                        case 1: {
-                            idx1 = conteudo.indexOf(" ");
-                            String tipo = conteudo.substring(0, idx1);
-                            String logradouro = conteudo.substring(idx1 + 1);
-                            result.setTipo_logradouro(tipo);
-                            result.setLogradouro(logradouro);
+        if (!wsViaCep) {
+            String constante = "<tr bgcolor=\"#ECF3F6\" onclick=\"javascript:detalharCep('1','2');\" style=\"cursor: pointer;\">";
+            constante = "<tr bgcolor=\"#ECF3F6\" onclick=\"javascript:detalharCep('1','5');\" style=\"cursor: pointer;\">";
+            constante = "onclick=\"javascript:detalharCep";
+            int idx1 = res.indexOf(constante);
+            idx1 = res.indexOf("style=\"cursor: pointer;\">", idx1) + "style=\"cursor: pointer;\">".length();
+            int idx2 = res.indexOf("</tr>", idx1);
+            if (idx1 >= 0 && idx2 > idx1) {
+                result.setResultado("1");
+                String filtrar = res.substring(idx1, idx2);
+                filtrar = filtrar.replace(constante, "");
+                filtrar = semEspacoDuploSemLinhaDupla(filtrar);
+
+                String[] frases = filtrar.split("</td>");
+                if (frases != null) {
+                    int i = 1;
+                    for (String frase : frases) {
+                        idx1 = frase.indexOf(">");
+                        String conteudo = frase.substring(idx1 + 1);
+                        System.out.println(conteudo);
+                        switch (i) {
+                            case 1: {
+                                idx1 = conteudo.indexOf(" ");
+                                String tipo = conteudo.substring(0, idx1);
+                                String logradouro = conteudo.substring(idx1 + 1);
+                                result.setTipo_logradouro(tipo);
+                                result.setLogradouro(logradouro);
+                            }
+                            break;
+                            case 2: {
+                                result.setBairro(conteudo);
+                            }
+                            break;
+                            case 3: {
+                                result.setCidade(conteudo);
+                            }
+                            break;
+                            case 4: {
+                                result.setUf(conteudo);
+                            }
+                            break;
+                            case 5: {
+                                result.setCep(conteudo);
+                            }
+                            break;
                         }
-                        break;
-                        case 2: {
-                            result.setBairro(conteudo);
-                        }
-                        break;
-                        case 3: {
-                            result.setCidade(conteudo);
-                        }
-                        break;
-                        case 4: {
-                            result.setUf(conteudo);
-                        }
-                        break;
-                        case 5: {
-                            result.setCep(conteudo);
-                        }
-                        break;
+                        i++;
                     }
-                    i++;
                 }
             }
+        } else {
+            String aux = XmlUtil.getTagConteudo(res, "cep", false).get(0);
+            result.setCep(aux);
+            aux = XmlUtil.getTagConteudo(res, "logradouro", false).get(0);
+            result.setLogradouro(aux);
+            aux = XmlUtil.getTagConteudo(res, "bairro", false).get(0);
+            result.setBairro(aux);
+            aux = XmlUtil.getTagConteudo(res, "localidade", false).get(0);
+            result.setCidade(aux);
+            aux = XmlUtil.getTagConteudo(res, "uf", false).get(0);
+            result.setUf(aux);
         }
         return result;
     }
