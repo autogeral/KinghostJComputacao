@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import org.apache.commons.httpclient.HttpClient;
 import org.apache.commons.httpclient.methods.PostMethod;
@@ -25,6 +24,7 @@ public class CepWs {
     private final String auth;
     private final String cep;
     private final boolean mobile = Boolean.parseBoolean(System.getProperty("buscaCep.correio.mobile", "true"));
+    //link sobre o Via Cep -  https://viacep.com.br/
     private final boolean wsViaCep = Boolean.parseBoolean(System.getProperty("buscaCep.webService.viaCep", "true"));;
 
     public CepWs(String cep) {
