@@ -375,7 +375,7 @@ public class CepWs {
                                 
         int codigo = client.executeMethod(post);
         InputStream is = post.getResponseBodyAsStream();
-        InputStreamReader isr = new InputStreamReader(is, "ISO-8859-1");
+        InputStreamReader isr = new InputStreamReader(is, "UTF-8");
         BufferedReader br = new BufferedReader(isr);
 
         StringBuilder sb = new StringBuilder();
