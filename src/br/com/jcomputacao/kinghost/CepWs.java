@@ -376,7 +376,7 @@ public class CepWs {
             post.setParameter("EndRow", "10");
         } else {
             get = new GetMethod(aurl);
-            get.addRequestHeader("User-Agent", "Google Chrome Versão 68.0.3440.106");
+            get.addRequestHeader("User-Agent", "Auto Geral - ERPJ");
         }
                                 
         int codigo = client.executeMethod(post != null ? post : get);
