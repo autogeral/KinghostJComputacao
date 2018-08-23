@@ -7,6 +7,7 @@ import java.io.InputStreamReader;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.commons.httpclient.HttpClient;
+import org.apache.commons.httpclient.methods.GetMethod;
 import org.apache.commons.httpclient.methods.PostMethod;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -339,7 +340,8 @@ public class CepWs {
             aurl += "/xml/";//tipo do retorno desejado
         }
         
-        PostMethod post = new PostMethod(aurl);
+        GetMethod get = null;
+        PostMethod post = null;
 
 //            if (usaAutenticacaoProxy) {
 //                String proxy = System.getProperty("http.proxyHost");
@@ -362,6 +364,7 @@ public class CepWs {
 //            }
 
         if (!wsViaCep) {
+            post = new PostMethod(aurl);
             post.setParameter("relaxation", cep);
             post.setParameter("TipoCep", "ALL");
             post.setParameter("semelhante", "N");
@@ -371,10 +374,13 @@ public class CepWs {
             post.setParameter("TipoConsulta", "relaxation");
             post.setParameter("StartRow", "1");
             post.setParameter("EndRow", "10");
+        } else {
+            get = new GetMethod(aurl);
+            get.addRequestHeader("User-Agent", "Google Chrome Versão 68.0.3440.106");
         }
                                 
-        int codigo = client.executeMethod(post);
-        InputStream is = post.getResponseBodyAsStream();
+        int codigo = client.executeMethod(post != null ? post : get);
+        InputStream is = (post != null ? post.getResponseBodyAsStream() : get.getResponseBodyAsStream());
         InputStreamReader isr = new InputStreamReader(is, "UTF-8");
         BufferedReader br = new BufferedReader(isr);
 
@@ -387,7 +393,11 @@ public class CepWs {
         br.close();
         isr.close();
         is.close();
-        post.releaseConnection();
+        if(post != null) {
+            post.releaseConnection();
+        } else if (get != null) {
+            get.releaseConnection();
+        }
 
         String res = sb.toString();
 //        System.out.println(res);
