@@ -470,7 +470,7 @@ public class CepWs {
             aux = XmlUtil.getTagConteudo(res, "bairro", false).get(0);
             result.setBairro(aux);
             aux = XmlUtil.getTagConteudo(res, "localidade", false).get(0);
-            result.setCidade(aux);
+            result.setCidade(StringUtil.noDeadKeysToUpperCase(aux));
             aux = XmlUtil.getTagConteudo(res, "uf", false).get(0);
             result.setUf(aux);
         }
