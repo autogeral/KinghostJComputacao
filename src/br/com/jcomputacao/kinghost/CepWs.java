@@ -463,17 +463,30 @@ public class CepWs {
                 }
             }
         } else {
-            String aux = XmlUtil.getTagConteudo(res, "cep", false).get(0);
-            result.setCep(aux);
-            aux = XmlUtil.getTagConteudo(res, "logradouro", false).get(0);
-            result.setLogradouro(aux);
-            aux = XmlUtil.getTagConteudo(res, "bairro", false).get(0);
-            result.setBairro(aux);
-            aux = XmlUtil.getTagConteudo(res, "localidade", false).get(0);
-            result.setCidade(StringUtil.noDeadKeysToUpperCase(aux));
-            aux = XmlUtil.getTagConteudo(res, "uf", false).get(0);
-            result.setUf(aux);
+            String[] tagsXml = res.split("<[^>]*>");
+            if (verificaSeTagErroXmlViaCep(tagsXml)) {
+                result.setResultado("CEP Inválido, por favor informe um que seja válido!");
+            } else {
+                String aux = XmlUtil.getTagConteudo(res, "cep", false).get(0);
+                result.setCep(aux);
+                aux = XmlUtil.getTagConteudo(res, "logradouro", false).get(0);
+                result.setLogradouro(aux);
+                aux = XmlUtil.getTagConteudo(res, "bairro", false).get(0);
+                result.setBairro(aux);
+                aux = XmlUtil.getTagConteudo(res, "localidade", false).get(0);
+                result.setCidade(StringUtil.noDeadKeysToUpperCase(aux));
+                aux = XmlUtil.getTagConteudo(res, "uf", false).get(0);
+                result.setUf(aux);
+            }
         }
         return result;
+    }
+    
+    private boolean verificaSeTagErroXmlViaCep(String[] tags) {
+        for (String tag : tags) {
+            if (tag.equals("true"))
+                return true;
+        }
+        return false;
     }
 }
