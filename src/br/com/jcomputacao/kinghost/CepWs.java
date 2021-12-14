@@ -465,7 +465,7 @@ public class CepWs {
         } else {
             String[] tagsXml = res.split("<[^>]*>");
             if (verificaSeTagErroXmlViaCep(tagsXml)) {
-                result.setResultado("CEP Inválido, por favor informe um que seja válido!");
+                result.setResultado("CEP Inválido, por favor, verifique o CEP e tente novamente!");
             } else {
                 String aux = XmlUtil.getTagConteudo(res, "cep", false).get(0);
                 result.setCep(aux);
@@ -484,7 +484,7 @@ public class CepWs {
     
     private boolean verificaSeTagErroXmlViaCep(String[] tags) {
         for (String tag : tags) {
-            if (tag.equals("true"))
+            if (tag.equals("true") || tag.equals("502 Bad Gateway"))
                 return true;
         }
         return false;
