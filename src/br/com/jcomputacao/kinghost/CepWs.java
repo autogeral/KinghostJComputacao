@@ -465,7 +465,7 @@ public class CepWs {
         } else {
             String[] tagsXml = res.split("<[^>]*>");
             if (verificaSeTagErroXmlViaCep(tagsXml)) {
-                result.setResultado("CEP Inválido, por favor, verifique o CEP e tente novamente!");
+                result.setResultado("CEP Inválido, verifique-o e tente novamente!");
             } else {
                 String aux = XmlUtil.getTagConteudo(res, "cep", false).get(0);
                 result.setCep(aux);
